@@ -6,7 +6,7 @@
   - ./terminal 0 (at terminal 1)
   - ./terminal 1 (at terminal 2)
   - ./tinyos_shell 1 2 [one core- two terminals synced]
-  - ./symposium <nphilos> <nbites> (terminal 1).
+  - symposium <nphilos> <nbites> (terminal 1). [or repeat <nrep> symposium]
   - give simultaneous IO (terminal 2).
   - you shouldn't be seeing IO lagging (terminal 2),if you do something went wrong.
 
