@@ -135,13 +135,7 @@ typedef struct thread_control_block {
 	enum SCHED_CAUSE curr_cause; /**< @brief The endcause for the current time-slice */
 	enum SCHED_CAUSE last_cause; /**< @brief The endcause for the last time-slice */
 
-  // Additions below
-  // pointers to previous and next context.
-  // Maybe no need for existance.
-
-  struct thread_control_block *prev;
-  struct thread_control_block *next;
-
+  
 
 } TCB;
 
