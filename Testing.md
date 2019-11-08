@@ -5,6 +5,7 @@
   - make project (see README.md for instructions) at terminal 3 (control terminal)
   - ./terminal 0 (at terminal 1)
   - ./terminal 1 (at terminal 2)
+  - ./tinyos_shell 1 2 [one core- two terminals synced]
   - ./symposium <nphilos> <nbites> (terminal 1).
   - give simultaneous IO (terminal 2).
   - you shouldn't be seeing IO lagging (terminal 2),if you do something went wrong.
