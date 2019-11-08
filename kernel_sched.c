@@ -11,6 +11,13 @@
 #include <valgrind/valgrind.h>
 #endif
 
+// Additions below - 2 lines. Declaration of a counter to increase on each yield's call. Definition of a limit after which re-prioritising happens
+static int quantumCounter = 0;  
+#define MAX_Q 100
+
+void rearrangePriorities();
+
+
 /*
    The thread layout.
   --------------------
@@ -101,6 +108,8 @@ static void thread_start()
 
 	/* We are not supposed to get here! */
 	assert(0);
+
+	//Orig seems to be cpu_initialize_context(&tcb->context, sp, THREAD_STACK_SIZE, thread_start);
 }
 
 /*
@@ -115,6 +124,14 @@ TCB* spawn_thread(PCB* pcb, void (*func)())
 	/* Set the owner */
 	tcb->owner_pcb = pcb;
 
+	//Additions below - 3 added lines
+
+	tcb->priority = 0; //start with zero Initial priority, add the new thread to the queue with the highest priority
+	tcb->prevPriority= 0; //Initial prevPriority cannot be different than Initial currPriority at the very beginning
+	tcb->mutexCount = 0; // Initialise to zero, count the times that a thread asked for a mutexLock
+
+
+
 	/* Initialize the other attributes */
 	tcb->type = NORMAL_THREAD;
 	tcb->state = INIT;
@@ -123,10 +140,13 @@ TCB* spawn_thread(PCB* pcb, void (*func)())
 	tcb->wakeup_time = NO_TIMEOUT;
 	rlnode_init(&tcb->sched_node, tcb); /* Intrusive list node */
 
+
 	tcb->its = QUANTUM;
 	tcb->rts = QUANTUM;
 	tcb->last_cause = SCHED_IDLE;
 	tcb->curr_cause = SCHED_IDLE;
+
+	
 
 	/* Compute the stack segment address and size */
 	void* sp = ((void*)tcb) + THREAD_TCB_SIZE;
@@ -185,7 +205,7 @@ CCB cctx[MAX_CORES];
   Both of these structures are protected by @c sched_spinlock.
 */
 
-rlnode SCHED; /* The scheduler queue */
+rlnode SCHED[PRIORITY_LEVELS]; /* The scheduler queue, edited to be a list of queues (Multiline Queue) */
 rlnode TIMEOUT_LIST; /* The list of threads with a timeout */
 Mutex sched_spinlock = MUTEX_INIT; /* spinlock for scheduler queue */
 
@@ -228,7 +248,7 @@ static void sched_register_timeout(TCB* tcb, TimerDuration timeout)
 static void sched_queue_add(TCB* tcb)
 {
 	/* Insert at the end of the scheduling list */
-	rlist_push_back(&SCHED, &tcb->sched_node);
+	rlist_push_back(&SCHED[tcb->priority], &tcb->sched_node);
 
 	/* Restart possibly halted cores */
 	cpu_core_restart_one();
@@ -283,13 +303,123 @@ static void sched_wakeup_expired_timeouts()
   return it. Return NULL if the list is empty.
 
   *** MUST BE CALLED WITH sched_spinlock HELD ***
-*/
-static TCB* sched_queue_select(TCB* current)
-{
-	/* Get the head of the SCHED list */
-	rlnode* sel = rlist_pop_front(&SCHED);
 
+	Additions below - <num> lines
+	
+	Added functionality of the multilevel queue. See notes below in format: 
+			
+		<lineStart - lineEnd> : <Functionality>
+
+		<321 - 321>: an Integer Offset for computations
+
+			
+
+
+*/
+static TCB* sched_queue_select(TCB *current,enum SCHED_CAUSE cause)
+{
+	
+
+	
+	
+	// define an offset for computations  [Todo: change it to a permanent value later]
+	int offset = 2; 
+
+	
+	switch(cause)
+	{
+
+		case SCHED_QUANTUM:   //quantum has expired
+
+			if ((current->priority < (PRIORITY_LEVELS - offset )) && (current->mutexCount == 0))
+			{
+				//high priority thread, not denied mutex access so decreasing priority by adding 1 to it
+
+				current->priority = current->priority + 1;   
+
+
+			}
+			else if ( current->mutexCount != 0)
+			{
+
+					current->mutexCount = 0; //restore mutexCounter
+					current->priority = current->prevPriority; // get your previousPriority back	
+			}		
+
+		case SCHED_IO:
+			
+			
+
+			if ((current->priority != 0) && (current->mutexCount == 0))
+				{
+					current->priority = current->priority - 1; //Increase priority order [Maybe curr.priority = curr.priority - 1 would be better]
+				}
+			else if (current->mutexCount != 0)
+			{
+				current->mutexCount = 0; //restore mutexCounter
+				current->priority = current->prevPriority; // get your previousPriority back	
+			}	
+
+		case SCHED_MUTEX:
+
+			current->mutexCount=current->mutexCount + 1; //Increase the counter when thread's mutex access get a lock	
+			if( current->mutexCount == 1)
+			{
+					current->prevPriority = current->priority; //store the priority the first time that a thread is denied mutex access
+
+
+			}
+			else if ( current->priority < PRIORITY_LEVELS - offset )
+			{
+				current->priority = current->priority + 1; //decrease priority
+			}
+		case SCHED_PIPE:
+		case SCHED_POLL:
+		case SCHED_IDLE:
+		case SCHED_USER:
+		break;
+
+		default:
+
+		// If execution reaches here there has been a malfunction.
+		fprintf(stderr, "BAD CAUSE for current thread %p in yield function %d\n",current,cause);
+		assert(0);
+	}	
+
+
+
+	if (quantumCounter >= MAX_Q)  //MAX_Q =100
+	{
+		rearrangePriorities();  // boost low - prioritised threads
+		quantumCounter = 0; // reset qCounter
+	}
+
+	
+
+	//Note: maybe refactor scheduler and call sched_wakeup_expired_timeouts() here!
+
+
+	
+	int actualLevel = 0;
+	
+
+	
+	// Seek for the proper level and thread to run
+	while(actualLevel < PRIORITY_LEVELS -1 && is_rlist_empty(& SCHED[actualLevel]))
+	{
+			actualLevel++;
+
+	}
+
+	/* Get the head of the SCHED list 
+
+		Additions: head of the SCHED[level] list		
+
+	*/
+	rlnode* sel = rlist_pop_front(& SCHED[actualLevel]);
 	TCB* next_thread = sel->tcb; /* When the list is empty, this is NULL */
+
+	//Should't get here after additions
 
 	if (next_thread == NULL)
 		next_thread = (current->state == READY) ? current : &CURCORE.idle_thread;
@@ -299,6 +429,31 @@ static TCB* sched_queue_select(TCB* current)
 	return next_thread;
 }
 
+
+/*
+		Boost low-prioritised threads if any. Executed inside sched_queue_select(). 
+
+*/
+
+void rearrangePriorities()
+{
+	
+	for (int i = (PRIORITY_LEVELS-1); i < 0; i--) 
+	{
+		//Iterate each level of scheduler_queue starting from low to high
+		while(! is_rlist_empty(&SCHED[i]))
+		{
+			TCB* aThread = SCHED[i].next->tcb;
+			aThread->priority = 0; // Impose the highest possible priority
+			rlnode *someNode;
+			someNode = rlist_pop_front(& SCHED[i]);
+
+			//Re-Enter with changed priority.
+			sched_queue_add(someNode->tcb);
+
+		}
+	}
+}
 /*
   Make the process ready.
  */
@@ -368,16 +523,25 @@ void yield(enum SCHED_CAUSE cause)
 	/* Reset the timer, so that we are not interrupted by ALARM */
 	TimerDuration remaining = bios_cancel_timer();
 
+	
+
 	/* We must stop preemption but save it! */
 	int preempt = preempt_off;
 
+	// Additions below - 1 line. Implement counting functionality when entering to yield.	
+	quantumCounter++;
+
 	TCB* current = CURTHREAD; /* Make a local copy of current process, for speed */
 
-	Mutex_Lock(&sched_spinlock);
+	Mutex_Lock(& sched_spinlock);
 
 	/* Update CURTHREAD state */
 	if (current->state == RUNNING)
+	{
 		current->state = READY;
+	}
+	
+
 
 	/* Update CURTHREAD scheduler data */
 	current->rts = remaining;
@@ -388,11 +552,14 @@ void yield(enum SCHED_CAUSE cause)
 	sched_wakeup_expired_timeouts();
 
 	/* Get next */
-	TCB* next = sched_queue_select(current);
+	TCB* next = sched_queue_select(current,cause);
 	assert(next != NULL);
 
 	/* Save the current TCB for the gain phase */
 	CURCORE.previous_thread = current;
+
+
+
 
 	Mutex_Unlock(&sched_spinlock);
 
@@ -452,13 +619,17 @@ void gain(int preempt)
 
 	Mutex_Unlock(&sched_spinlock);
 
+	
+
+
 	/* Reset preemption as needed */
 	if (preempt)
 		preempt_on;
 
 	/* Set a 1-quantum alarm */
-	bios_set_timer(current->rts);
+	bios_set_timer(current->rts);  
 }
+
 
 static void idle_thread()
 {
@@ -481,7 +652,22 @@ static void idle_thread()
  */
 void initialize_scheduler()
 {
-	rlnode_init(&SCHED, NULL);
+
+
+	/*
+	Additions below - 4 lines
+		Implemented Multilevels for SCHED.
+		Was:
+			Array of Threads.
+		Is:
+			Array of Pointers, which pointing to a Thread
+	*/
+
+	for (int i = 0; i < PRIORITY_LEVELS; i++) //PRIORITY_LEVELS == 5
+	{
+		rlnode_init(&SCHED[i], NULL);
+	}
+	
 	rlnode_init(&TIMEOUT_LIST, NULL);
 }
 

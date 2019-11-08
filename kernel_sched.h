@@ -23,7 +23,7 @@
 #include "bios.h"
 #include "tinyos.h"
 #include "util.h"
-
+#define PRIORITY_LEVELS 5
 /*****************************
  *
  *  The Thread Control Block
@@ -91,6 +91,8 @@ enum SCHED_CAUSE {
 	SCHED_USER /**< @brief User-space code called yield */
 };
 
+
+typedef int threadPriority; // a way to counter thread's priority
 /**
   @brief The thread control block
 
@@ -125,8 +127,21 @@ typedef struct thread_control_block {
 	TimerDuration its; /**< @brief Initial time-slice for this thread */
 	TimerDuration rts; /**< @brief Remaining time-slice for this thread */
 
+  //Additions below
+  threadPriority priority; //priority of current Thread, expressed as int see line 95 for definition
+  threadPriority prevPriority; // priority of thread before enterinf scheduler's mutex (initial entrance)
+  int mutexCount; // count mutex call occurences 
+
 	enum SCHED_CAUSE curr_cause; /**< @brief The endcause for the current time-slice */
 	enum SCHED_CAUSE last_cause; /**< @brief The endcause for the last time-slice */
+
+  // Additions below
+  // pointers to previous and next context.
+  // Maybe no need for existance.
+
+  struct thread_control_block *prev;
+  struct thread_control_block *next;
+
 
 } TCB;
 
