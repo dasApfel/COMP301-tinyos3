@@ -38,6 +38,12 @@ typedef enum pid_state_e {
 typedef struct process_control_block {
   pid_state  pstate;      /**< @brief The pid state for this PCB */
 
+
+  //Addition - 3 lines (8/11/2019)
+  rlnode thread_list;    // A pointer to point a list of ptcb objects,a list of threads binded to each PCB (Process Control Block)
+  CondVar aCond;         // a condition variable to help transmit condVars
+  int threadCount;       // a counter, to count the threads existing 
+
   PCB* parent;            /**< @brief Parent's pcb. */
   int exitval;            /**< @brief The exit value of the process */
 
@@ -61,6 +67,28 @@ typedef struct process_control_block {
   FCB* FIDT[MAX_FILEID];  /**< @brief The fileid table of the process */
 
 } PCB;
+
+
+//Addition - 18 lines (8/11/2019)
+typedef struct process_thread_control_block  
+{
+
+/*Define properly*/
+
+
+  int exitVal; //Exit value of a thread
+  int arg1;    //main thread's argLength
+  int exitFlag; //flag the exit from the main thread (1 = EXITED, 0 = ANY OTHER THREAD) 
+  int refCounter; //reference counter, used for counting joined threads.
+  int isExited;  // check and mark the existance of a thread.
+  int isDetached; // check if is detached.
+
+  Task main_task; // main thread's task => thread's main function ==> function linked to main thread.
+  TCB *thread; // thread linked to a ptcb
+  rlnode aNode; // a list of tcbs
+  CondVar cVar; // a condVar for joined tcbs
+
+} PTCB;
 
 
 /**
