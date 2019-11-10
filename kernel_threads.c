@@ -119,11 +119,52 @@ int sys_ThreadJoin(Tid_t tid, int* exitval)
 }
 
 /**
-  @brief Detach the given thread.
+  @brief Detach the given thread. Detachable: a thread that cannot be joined by any other.."Mum, Im a grown up now"
   */
 int sys_ThreadDetach(Tid_t tid)
 {
-	return -1;
+	
+  PTCB* somePTCB=NULL;
+  
+  int ret=0;
+  int len=rlist_len(&CURPROC->thread_list);
+  int counter=0;
+
+  rlnode *node=(&CURPROC->thread_list)->next;
+
+
+  // itterate the whole thread_list of the current process
+  while(counter < len)
+  {
+
+    //if the current_node of the thread_list has a thread whicha has t_id == given_t_id,mark it
+    if(node->ptcb->thread == (TCB *) tid)
+    {
+
+        somePTCB = node->ptcb;
+
+    }
+
+    node = node->next;
+    counter++
+
+
+    if(somePTCB == NULL || somePTCB->hasExited != 0)
+    {
+      //Unable to detach a NULL thread or a ZOMBIE thread
+      ret = -1;
+    }
+    else
+    {
+
+      ((PTCB *)tid)->isDetached = 1; //flag the detachment
+      kernel_broadcast(&somePTCB->cVar);
+
+    }
+
+  }
+
+  return ret;
 }
 
 /**
