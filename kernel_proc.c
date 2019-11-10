@@ -44,6 +44,12 @@ static inline void initialize_PCB(PCB* pcb)
   rlnode_init(& pcb->children_node, pcb);
   rlnode_init(& pcb->exited_node, pcb);
   pcb->child_exit = COND_INIT;
+
+  //Addition below - 3 lines
+
+  rlnode_new(&pcb->thread_list); // each PCB should now point to a list of PTCBs
+  pcb->aCond = COND_INIT;
+  pcb->threadCount = 0;
 }
 
 
@@ -180,7 +186,7 @@ Pid_t sys_Exec(Task call, int argl, void* args)
     the initialization of the PCB.
    */
  
-  //Addition below - lines . Implemented the support to PTCB in initialisation.
+  //Addition below - 20 lines . Implemented the support to PTCB in initialisation.
 
   newproc->threadCount++; //Increase the count of Threads assosciated with this process.
 
@@ -312,6 +318,8 @@ Pid_t sys_WaitChild(Pid_t cpid, int* status)
 
 }
 
+
+/*Todo: Maybe refactor it to support PTCBs*/
 
 void sys_Exit(int exitval)
 {
