@@ -197,7 +197,7 @@ Pid_t sys_Exec(Task call, int argl, void* args)
   ptcb->hasExited=0;
   ptcb->refCounter=0;
   ptcb->cVar = COND_INIT;
-  ptcb->exitFlag=1;
+  ptcb->exitFlag=1; //define the flag for the main_thread
 
   //Copy the arguments to storage under PTCB's control.
 
@@ -333,7 +333,7 @@ void sys_Exit(int exitval)
   }
 
 
-  //just fix that exitvalue thing for main_thread
+  //just assign the exitval to the current process
   CURPROC->exitval = exitval;
 
   //then call the threadExit to play with each thread's exit, this function is our bully
