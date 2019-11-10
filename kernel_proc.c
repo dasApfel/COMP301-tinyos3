@@ -193,12 +193,11 @@ Pid_t sys_Exec(Task call, int argl, void* args)
   PTCB *ptcb = (PTCB *)malloc(sizeof(PTCB)); //dynamically allocate space for a PTCB object
   ptcb->main_task = call;
   ptcb->argl = argl;
-  ptcb->exited=0;
   ptcb->isDetached=0;
-  ptcb->isExistant=0;
+  ptcb->hasExited=0;
   ptcb->refCounter=0;
   ptcb->cVar = COND_INIT;
-  ptcb->isExited=1;
+  ptcb->exitFlag=1;
 
   //Copy the arguments to storage under PTCB's control.
 
