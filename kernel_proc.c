@@ -114,11 +114,12 @@ void release_PCB(PCB* pcb)
 */
 void start_main_thread()
 {
+  PTCB* aptcb = (PTCB *)sys_ThreadSelf();
   int exitval;
 
-  Task call =  CURPROC->main_task;
-  int argl = CURPROC->argl;
-  void* args = CURPROC->args;
+  Task call =  aptcb->main_task;
+  int argl = aptcb->argl;
+  void* args = aptcb->args;
 
   exitval = call(argl,args);
   Exit(exitval);
@@ -165,6 +166,7 @@ Pid_t sys_Exec(Task call, int argl, void* args)
 
   /* Copy the arguments to new storage, owned by the new process */
   newproc->argl = argl;
+
   if(args!=NULL) {
     newproc->args = malloc(argl);
     memcpy(newproc->args, args, argl);
@@ -177,9 +179,39 @@ Pid_t sys_Exec(Task call, int argl, void* args)
     we do, because once we wakeup the new thread it may run! so we need to have finished
     the initialization of the PCB.
    */
+ 
+  //Addition below - lines . Implemented the support to PTCB in initialisation.
+
+  newproc->threadCount++; //Increase the count of Threads assosciated with this process.
+
+  PTCB *ptcb = (PTCB *)malloc(sizeof(PTCB)); //dynamically allocate space for a PTCB object
+  ptcb->main_task = call;
+  ptcb->argl = argl;
+  ptcb->exited=0;
+  ptcb->isDetached=0;
+  ptcb->isExited=0;
+  ptcb->refCounter=0;
+  ptcb->cVar = COND_INIT;
+  ptcb->isExited=1;
+
+  //Copy the arguments to storage under PTCB's control.
+
+  if(args != NULL) 
+  {
+    ptcb->args = malloc(argl);  //allocate storage
+    memcpy(ptcb->args, args, argl); //copy content
+  }
+  else
+  { 
+    ptcb->args=NULL;
+  }
+
+  rlnode *ptcbNode= rlnode_init(&ptcb->aNode, ptcb);
+  rlist_push_back(&newproc->thread_list, ptcbNode);
+
   if(call != NULL) {
-    newproc->main_thread = spawn_thread(newproc, start_main_thread);
-    wakeup(newproc->main_thread);
+    ptcb->thread =spawn_thread(newproc,start_main_thread);
+    wakeup(ptcb->thread);
   }
 
 
