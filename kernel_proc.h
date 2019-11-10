@@ -80,9 +80,9 @@ typedef struct process_thread_control_block
   int argl;    //main thread's argLength
   int exitFlag; //flag the exit from the main thread (1 = EXITED, 0 = ANY OTHER THREAD) 
   int refCounter; //reference counter, used for counting joined threads.
-  int isExited;  // check and mark the existance of a thread.
+  int isExistant;  // check and mark the existance of a thread.
   int isDetached; // check if is detached.
-  void* args //an argument string, main thread's arg string
+  void* args //an argument string, main thread's arg stringkernel_proc
 
   Task main_task; // main thread's task => thread's main function ==> function linked to main thread.
   TCB *thread; // thread linked to a ptcb

@@ -195,7 +195,7 @@ Pid_t sys_Exec(Task call, int argl, void* args)
   ptcb->argl = argl;
   ptcb->exited=0;
   ptcb->isDetached=0;
-  ptcb->isExited=0;
+  ptcb->isExistant=0;
   ptcb->refCounter=0;
   ptcb->cVar = COND_INIT;
   ptcb->isExited=1;
