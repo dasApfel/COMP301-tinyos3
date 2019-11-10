@@ -19,7 +19,7 @@ Tid_t sys_CreateThread(Task task, int argl, void* args)
   -get the current process's thread list (PCB->thread_list)  =>typeof(thread_list) == (PTCB *)rlnode
   -itterate every thread connected with the CURPROC
   -mark the position of CURTHREAD
-  -return T_Id of CURTHREAD
+  -return T_Id of PTCB showing to that.
  */
 Tid_t sys_ThreadSelf()
 {
@@ -47,7 +47,7 @@ Tid_t sys_ThreadSelf()
 
 
 
-	return (Tid_t) CURTHREAD;
+	return (Tid_t) currPTCB;
 }
 
 /**
@@ -55,7 +55,7 @@ Tid_t sys_ThreadSelf()
   */
 int sys_ThreadJoin(Tid_t tid, int* exitval)
 {
-	return -1;
+	
 }
 
 /**
