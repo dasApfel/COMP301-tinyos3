@@ -13,7 +13,9 @@
 
 // Additions below - 2 lines. Declaration of a counter to increase on each yield's call. Definition of a limit after which re-prioritising happens
 static int quantumCounter = 0;  
+static int initialPos = 2;
 #define MAX_Q 100
+
 
 void rearrangePriorities();
 
@@ -126,7 +128,7 @@ TCB* spawn_thread(PCB* pcb, void (*func)())
 
 	//Additions below - 3 added lines
 
-	tcb->priority = 0; //start with zero Initial priority, add the new thread to the queue with the highest priority
+	tcb->priority = initialPos; //start with zero Initial priority, add the new thread to the queue with the highest priority
 	tcb->prevPriority= 0; //Initial prevPriority cannot be different than Initial currPriority at the very beginning
 	tcb->mutexCount = 0; // Initialise to zero, count the times that a thread asked for a mutexLock
 
@@ -352,7 +354,7 @@ static TCB* sched_queue_select(TCB *current,enum SCHED_CAUSE cause)
 
 			if ((current->priority != 0) && (current->mutexCount == 0))
 				{
-					current->priority = current->priority - 1; //Increase priority order [Maybe curr.priority = curr.priority - 1 would be better]
+					current->priority = current->priority - 1; //Increase priority order 
 				}
 			else if (current->mutexCount != 0)
 			{
