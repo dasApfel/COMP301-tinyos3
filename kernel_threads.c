@@ -2,6 +2,10 @@
 #include "tinyos.h"
 #include "kernel_sched.h"
 #include "kernel_proc.h"
+#include "kernel_cc.h"
+#include "kernel_streams.h"
+
+
 
 
 /*
@@ -14,7 +18,7 @@ Definetlly needed nigga..
 void start_new_thread()
 {
   int exitValue;
-  PTCB somePTCB = (PTCB *)sys_ThreadSelf();
+  PTCB *somePTCB =(PTCB *)sys_ThreadSelf();
   Task call = somePTCB->main_task;
   int argl = somePTCB->argl;
   void* args = somePTCB->args;
@@ -42,7 +46,7 @@ Tid_t sys_CreateThread(Task task, int argl, void* args)
 
   PTCB *aptcb = malloc(sizeof(PTCB)); //reference pointer, dynamically alloc. space
  
-  aptcb->main_task = call;
+  aptcb->main_task = task;
   aptcb->argl = argl;
   aptcb->isDetached=0;
   aptcb->refCounter=0;
@@ -50,19 +54,19 @@ Tid_t sys_CreateThread(Task task, int argl, void* args)
   aptcb->hasExited=0;
 
 	 if (args == NULL) {
-        ptcb->args = NULL;
+        aptcb->args = NULL;
     }
     else
     {
-        ptcb->args = args;
+        aptcb->args = args;
     }
 
-    rlnode *ptcbNode = rlnode_init(&aptcbNode->aNode, aptcb);
+    rlnode *ptcbNode = rlnode_init(&aptcb->aNode, aptcb);
     rlist_push_back(&CURPROC->thread_list, ptcbNode);
 
     if (task != NULL) {
-        ptcb->thread = spawn_thread(CURPROC,start_new_thread);  
-        wakeup(ptcb->thread);   //make a tcb ready to be imported on scheduler
+        aptcb->thread = spawn_thread(CURPROC,start_new_thread);  
+        wakeup(aptcb->thread);   //make a tcb ready to be imported on scheduler
     }
 
     return (Tid_t) aptcb->thread;
@@ -78,11 +82,12 @@ Tid_t sys_CreateThread(Task task, int argl, void* args)
   -mark the position of CURTHREAD
   -return T_Id of PTCB showing to that.
  */
+
 Tid_t sys_ThreadSelf()
 {
 
   PTCB* currPTCB=NULL;
-  int ptcbLen=rlist_len(&CURPROC->thread_list)  //get the length of the threads list in the current process
+  int ptcbLen=rlist_len(&CURPROC->thread_list);  //get the length of the threads list in the current process
   int counter = 0;
   int found = 0;  //flag if something is found => (found = 1)
   rlnode *aNode= (&CURPROC->thread_list)->next;
@@ -109,13 +114,82 @@ Tid_t sys_ThreadSelf()
 
 /**
   @brief Join the given thread.
+  When a thread joins another waits in sleep until the other one finishes..
+
+  "I'm the whore of someone whom I wait to finish cause I need something from him (a condvar)"
   
-  -  
+    
 
   */
 int sys_ThreadJoin(Tid_t tid, int* exitval)
 {
-	return -1;
+
+  int ret = 0;
+  int found = 0;
+  int counter = 0;
+  int len = rlist_len(&CURPROC->thread_list);
+  PTCB* obj = NULL;
+  rlnode *node = (&CURPROC->thread_list)->next;
+
+  //locate the PTCB for the Tid given as argument
+
+  while(counter < len || found == 0)
+  {
+
+      if (node->ptcb->thread == (TCB *)tid)
+      {
+        obj = node->ptcb;
+        found = 1;
+      }
+      counter++;
+      node = node->next;
+  }
+  //check if join action can happen
+
+  if(obj == NULL || obj->isDetached == 1 || CURTHREAD == (TCB *)tid )
+  {
+
+    ret = -1;
+  }
+  else
+  {
+
+
+    obj->refCounter++;
+    while(obj->hasExited == 0 && obj->isDetached != 1)
+    {
+
+        kernel_wait(& obj->cVar, SCHED_USER);
+
+
+    }
+    obj->refCounter--;
+
+    if (obj->isDetached == 1)
+    {
+      ret = -1;
+    }
+    else
+    {
+      if(obj->hasExited == 1)
+      {
+          if(exitval != NULL)
+          {
+            *exitval = obj->exitVal;
+          }
+      }
+      //case no threads left, releasing the node
+      if(obj->refCounter == 0)
+      {
+        rlist_remove(&obj->aNode);
+        free(obj);
+      }
+
+    }
+
+  }
+
+	return ret;
 }
 
 /**
@@ -146,7 +220,7 @@ int sys_ThreadDetach(Tid_t tid)
     }
 
     node = node->next;
-    counter++
+    counter++;
 
 
     if(somePTCB == NULL || somePTCB->hasExited != 0)
@@ -189,10 +263,11 @@ void sys_ThreadExit(int exitval)
    if not there is no need to worry, main_thread is covered in kernel_proc.c so we're fine..i guess
 */
 
-  if(CURPROC->exitFlag == 0) 
+  if(currPTCB->exitFlag == 0) 
   {
     currPTCB->exitVal = exitval;
   }
+
   //broadcast condVariables to kernel
   kernel_broadcast(&currPTCB->cVar);
   kernel_broadcast(&CURPROC->aCond);
@@ -201,7 +276,7 @@ void sys_ThreadExit(int exitval)
   if(CURPROC->threadCount == 0)
   {
 
-      PCB *curproc=CURPROC // make a local copy - cache for higher efficiency level
+      PCB *curproc=CURPROC; // make a local copy - cache for higher efficiency level
 
       //Clean up whatever sysExit would clean but also for a "regular" thread as well.
       //Lines cropped and adjusted from sysExit (kernel_proc.c), no need for them to be there any more
@@ -224,8 +299,17 @@ void sys_ThreadExit(int exitval)
         }
       }
 
+      while(!is_rlist_empty(&curproc->thread_list))
+      {
+
+        rlnode *currNode=rlist_pop_front(&curproc->thread_list);
+        free(currNode->ptcb);
+
+
+      }
+
        /* Reparent any children of the exiting process to the 
-     initial task */
+          initial task */
       PCB* initpcb = get_pcb(1);
       while(!is_rlist_empty(& curproc->children_list)) 
       {
@@ -254,6 +338,6 @@ void sys_ThreadExit(int exitval)
       curproc->pstate = ZOMBIE;
   }
  //goodbye my lover, goodbye my friend..
- kernel_sleep(EXITED,SCHED_USER) 
+ kernel_sleep(EXITED, SCHED_USER);
 }
 
