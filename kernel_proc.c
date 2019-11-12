@@ -188,7 +188,7 @@ Pid_t sys_Exec(Task call, int argl, void* args)
  
   //Addition below - 20 lines . Implemented the support to PTCB in initialisation.
 
-  newproc->threadCount++; //Increase the count of Threads assosciated with this process.
+  newproc->threadCount ++; //Increase the count of Threads assosciated with this process.
 
   PTCB *ptcb = (PTCB *)malloc(sizeof(PTCB)); //dynamically allocate space for a PTCB object
   ptcb->main_task = call;

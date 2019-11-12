@@ -12,8 +12,8 @@
 #endif
 
 // Additions below - 2 lines. Declaration of a counter to increase on each yield's call. Definition of a limit after which re-prioritising happens
-static int quantumCounter = 0;  
-static int initialPos = 2;
+static int quantumCounter = 0;  //a counter to count the yield's,scheduling decisions that have been taken
+static int initialPos =PRIORITY_LEVELS/2; //start from an inbetween level, 0 would also be a solution (start from highest possible level)
 #define MAX_Q 100
 
 
@@ -129,7 +129,7 @@ TCB* spawn_thread(PCB* pcb, void (*func)())
 	//Additions below - 3 added lines
 
 	tcb->priority = initialPos; //start with zero Initial priority, add the new thread to the queue with the highest priority
-	tcb->prevPriority= 0; //Initial prevPriority cannot be different than Initial currPriority at the very beginning
+	tcb->prevPriority= initialPos; //Initial prevPriority cannot be different than Initial currPriority at the very beginning
 	tcb->mutexCount = 0; // Initialise to zero, count the times that a thread asked for a mutexLock
 
 
@@ -375,10 +375,10 @@ static TCB* sched_queue_select(TCB *current,enum SCHED_CAUSE cause)
 			{
 				current->priority = current->priority + 1; //decrease priority
 			}
-		case SCHED_PIPE:
-		case SCHED_POLL:
-		case SCHED_IDLE:
-		case SCHED_USER:
+		case SCHED_PIPE:  //Thread sleep at a pipe
+		case SCHED_POLL:  //Thread is polling a device
+		case SCHED_IDLE:  //Idle thread called yield,which called us ofc
+		case SCHED_USER:  //User space code called yield, which did the same
 		break;
 
 		default:
@@ -442,11 +442,11 @@ void rearrangePriorities()
 	
 	for (int i = (PRIORITY_LEVELS-1); i < 0; i--) 
 	{
-		//Iterate each level of scheduler_queue starting from low to high
+		//Iterate each level of scheduler_queue starting from low to high exluding top level of SCHED[i]
 		while(! is_rlist_empty(&SCHED[i]))
 		{
 			TCB* aThread = SCHED[i].next->tcb;
-			aThread->priority = 0; // Impose the highest possible priority
+			aThread->priority --; ///boost priority up to a higher level, assign 0 would also be a solution [Impose highest possible priority]
 			rlnode *someNode;
 			someNode = rlist_pop_front(& SCHED[i]);
 
@@ -629,7 +629,7 @@ void gain(int preempt)
 		preempt_on;
 
 	/* Set a 1-quantum alarm */
-	bios_set_timer(current->rts);  
+	bios_set_timer(current->rts);  // /PRIORITY_LEVELS+1 -curr->priority is another way to dynamically define quantum
 }
 
 
