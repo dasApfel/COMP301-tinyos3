@@ -48,6 +48,36 @@ typedef struct file_control_block
 
 
 
+/* Definition of a Pipe Control Block
+
+	A PipeCB is initialised after an FCB's reservation
+
+
+
+*/
+
+#define BUFFER_SIZE (10*1024)  // a 10 kB size is a nice typicall buffer to use
+
+typedef struct pipe_control_block
+{
+
+	char buffer[BUFFER_SIZE];
+	pipe_t *pipe;
+	FCB *reader;
+	FCB *writer;
+	int readerOff,writerOff;
+	CondVar cv_read;
+	CondVar cv_write;
+	unsigned int readPos,writePos;
+
+
+
+
+
+
+} PipeCB;			
+
+
 /** 
   @brief Initialization for files and streams.
 
