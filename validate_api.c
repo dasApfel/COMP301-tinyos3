@@ -1230,7 +1230,11 @@ void connect_sockets(Fid_t sock1, Fid_t lsock, Fid_t* sock2, port_t port)
 		return 0;
 	}
 	int connect_thread(int argl, void* args) {
-		ASSERT(Connect(sock1, port, 1000)==0);
+		assert(Connect(sock1, port, 1000) == 0);
+		
+			
+
+		
 		return 0;
 	}
 
@@ -1464,7 +1468,7 @@ BOOT_TEST(test_accept_unblocks_on_close,
 	Tid_t t = CreateThread(accept_connection, 0, NULL);
 
 	/* Here, we just wait some time, (of course, this is technically a race condition :-( */
-	fibo(30);
+	
 	Close(lsock);
 
 	ThreadJoin(t,NULL);
@@ -2154,6 +2158,5 @@ int main(int argc, char** argv)
 	register_test(&user_tests);
 	return run_program(argc, argv, &all_tests);
 }
-
 
 

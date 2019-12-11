@@ -3,6 +3,7 @@
 #include "kernel_cc.h"
 #include "kernel_proc.h"
 #include "kernel_streams.h"
+#include "tinyos.h"
 
 
 /* 
@@ -341,9 +342,100 @@ void sys_Exit(int exitval)
 }
 
 
+//Define an info block to use later on
+
+static file_ops info_module = {
+    .Open = NULL,
+    .Read = info_read,
+    .Write = NULL,
+    .Close = info_close
+};
+
+
+
+
+//read an info block
+
+int info_read(void *infoCB, char *buf, unsigned int size) 
+{
+
+
+  unsigned int pos=0;
+
+  //caching and stuff like that
+  InfoCB *infocb = (InfoCB *) infoCB;
+
+ 
+  while (pos<size && infocb->read_pos < infocb->write_pos)
+  {
+        buf[pos] = infocb->infoTable[infocb->read_pos];
+        pos++;
+        infocb->read_pos++;
+  }
+  return pos;
+
+}
+
+
+
+
+//close the stream
+
+int info_close(void *infoCB) 
+{
+    free(infoCB);
+  return 0;
+}
+
+
+//syscall
 
 Fid_t sys_OpenInfo()
 {
-	return NOFILE;
+
+
+  Fid_t fid;
+  FCB *fcb;
+
+
+  if (!FCB_reserve(1, &fid, &fcb))
+  {
+    return NOFILE;
+  }
+
+  //allocate control block space and initialize
+
+  InfoCB *infoCB = (InfoCB *) xmalloc(sizeof(InfoCB));
+  infoCB->read_pos = 0;
+  infoCB->write_pos = 0;
+  fcb->streamobj = infoCB;
+  fcb->streamfunc = &info_module;
+
+  procinfo *info = (procinfo *) xmalloc(sizeof(procinfo));
+  
+
+  for (int i = 0; i < MAX_PROC; i++) {
+    PCB *pcb = &PT[i];
+    if (pcb->pstate == ALIVE || pcb->pstate == ZOMBIE) 
+    {
+         info->pid = get_pid(&PT[i]);
+         info->ppid = get_pid(pcb->parent);
+         info->alive = pcb->pstate == ALIVE;
+         info->thread_count = pcb->threadCount ;
+         info->main_task = pcb->main_task;
+         info->argl = pcb->argl;
+    
+         for (int j = 0; j < info->argl; j++) 
+         {
+            info->args[j] = ((char *) pcb->args)[j];
+         }
+         
+         memcpy(&infoCB->infoTable[infoCB->write_pos], info, sizeof(procinfo));
+         
+         infoCB->write_pos = infoCB->write_pos + sizeof(procinfo);
+    }
+  }
+  return fid;
 }
+
 

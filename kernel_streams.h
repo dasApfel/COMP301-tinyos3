@@ -48,7 +48,10 @@ typedef struct file_control_block
 
 
 
-/* Definition of a Pipe Control Block
+/* 
+
+
+	Definition of a Pipe Control Block
 
 	A PipeCB is initialised after an FCB's reservation
 
@@ -76,6 +79,74 @@ typedef struct pipe_control_block
 
 
 } PipeCB;			
+
+PipeCB *Pipe_Init(pipe_t *pipe, Fid_t *fid, FCB **fcb);
+
+
+
+
+/* Sockets Objects */
+
+typedef struct socket_control_block SCB;
+
+// Listener 
+
+typedef struct listeners_data 
+{
+    rlnode buffer_queue;
+    CondVar cv;
+
+
+} Listener;
+
+typedef struct listener_requests
+{
+    SCB *scb;
+    CondVar cv;
+    rlnode req_queue;
+    int admitted; //Todo: Discover Usage
+
+} Request;
+
+
+// Peer
+
+typedef struct peer_data 
+{
+    PipeCB *server;
+    PipeCB *client;
+    SCB *buddy;
+
+} Peer;
+
+
+
+
+
+//	Socket Control Block definition
+
+typedef struct socket_control_block 
+{
+    Fid_t fid;
+    FCB *fcb;
+    socketType socketType;
+    port_t boundPort;
+    unsigned int ref_counter;
+
+    union 
+    {
+        Listener *listener_ops;
+        Peer *peer_ops;
+    } CBT;
+
+
+
+} SCB;
+
+
+
+
+
 
 
 /** 
@@ -156,6 +227,7 @@ void FCB_unreserve(size_t num, Fid_t *fid, FCB** fcb);
 	@returns a pointer to the corresponding FCB, or NULL.
  */
 FCB* get_fcb(Fid_t fid);
+SCB *find_scb(Fid_t sock);
 
 
 /** @} */

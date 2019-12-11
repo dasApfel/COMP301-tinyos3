@@ -23,7 +23,13 @@
 #include "bios.h"
 #include "tinyos.h"
 #include "util.h"
+
 #define PRIORITY_LEVELS 5
+
+
+
+void boostThreads();
+
 /*****************************
  *
  *  The Thread Control Block
@@ -38,11 +44,11 @@
   @see Thread_phase
 */
 typedef enum {
-	INIT, /**< @brief TCB initialising */
-	READY, /**< @brief A thread ready to be scheduled.   */
-	RUNNING, /**< @brief A thread running on some core   */
-	STOPPED, /**< @brief A blocked thread   */
-	EXITED /**< @brief A terminated thread   */
+  INIT, /**< @brief TCB initialising */
+  READY, /**< @brief A thread ready to be scheduled.   */
+  RUNNING, /**< @brief A thread running on some core   */
+  STOPPED, /**< @brief A blocked thread   */
+  EXITED /**< @brief A terminated thread   */
 } Thread_state;
 
 /** @brief Thread phase. 
@@ -64,15 +70,15 @@ typedef enum {
   @see Thread_state
 */
 typedef enum {
-	CTX_CLEAN, /**< @brief Context is clean. */
+  CTX_CLEAN, /**< @brief Context is clean. */
 
-	CTX_DIRTY /**< @brief Context is dirty. */
+  CTX_DIRTY /**< @brief Context is dirty. */
 } Thread_phase;
 
 /** @brief Thread type. */
 typedef enum {
-	IDLE_THREAD, /**< @brief Marks an idle thread. */
-	NORMAL_THREAD /**< @brief Marks a normal thread */
+  IDLE_THREAD, /**< @brief Marks an idle thread. */
+  NORMAL_THREAD /**< @brief Marks a normal thread */
 } Thread_type;
 
 /**
@@ -82,17 +88,17 @@ typedef enum {
   adjust the dynamic priority of the current thread.
  */
 enum SCHED_CAUSE {
-	SCHED_QUANTUM, /**< @brief The quantum has expired */
-	SCHED_IO, /**< @brief The thread is waiting for I/O */
-	SCHED_MUTEX, /**< @brief @c Mutex_Lock yielded on contention */
-	SCHED_PIPE, /**< @brief Sleep at a pipe or socket */
-	SCHED_POLL, /**< @brief The thread is polling a device */
-	SCHED_IDLE, /**< @brief The idle thread called yield */
-	SCHED_USER /**< @brief User-space code called yield */
+  SCHED_QUANTUM, /**< @brief The quantum has expired */
+  SCHED_IO, /**< @brief The thread is waiting for I/O */
+  SCHED_MUTEX, /**< @brief @c Mutex_Lock yielded on contention */
+  SCHED_PIPE, /**< @brief Sleep at a pipe or socket */
+  SCHED_POLL, /**< @brief The thread is polling a device */
+  SCHED_IDLE, /**< @brief The idle thread called yield */
+  SCHED_USER /**< @brief User-space code called yield */
 };
 
 
-typedef int threadPriority; // a way to counter thread's priority
+
 /**
   @brief The thread control block
 
@@ -100,42 +106,45 @@ typedef int threadPriority; // a way to counter thread's priority
   are stored all the metadata that relate to the thread.
 */
 typedef struct thread_control_block {
-	PCB* owner_pcb; /**< @brief This is null for a free TCB */
-
-	cpu_context_t context; /**< @brief The thread context */
+  PCB* owner_pcb; /**< @brief This is null for a free TCB */
+  PTCB* owner_ptcb;    /* is null for the main thread */
+  cpu_context_t context; /**< @brief The thread context */
 
 #ifndef NVALGRIND
-	unsigned valgrind_stack_id; /**< @brief Valgrind helper for stacks. 
+  unsigned valgrind_stack_id; /**< @brief Valgrind helper for stacks. 
 
-	  This is useful in order to register the thread stack to the valgrind memory profiler. 
-	  Valgrind needs to know which parts of memory are used as stacks, in order to return
-	  meaningful error information. 
+    This is useful in order to register the thread stack to the valgrind memory profiler. 
+    Valgrind needs to know which parts of memory are used as stacks, in order to return
+    meaningful error information. 
 
-	  This field is not relevant to anything in the TinyOS logic and can be ignored.
-	  */
+    This field is not relevant to anything in the TinyOS logic and can be ignored.
+    */
 #endif
 
-	Thread_type type; /**< @brief The type of thread */
-	Thread_state state; /**< @brief The state of the thread */
-	Thread_phase phase; /**< @brief The phase of the thread */
+  Thread_type type; /**< @brief The type of thread */
+  Thread_state state; /**< @brief The state of the thread */
+  Thread_phase phase; /**< @brief The phase of the thread */
 
-	void (*thread_func)(); /**< @brief The initial function executed by this thread */
+  void (*thread_func)(); /**< @brief The initial function executed by this thread */
 
-	TimerDuration wakeup_time; /**< @brief The time this thread will be woken up by the scheduler */
+  TimerDuration wakeup_time; /**< @brief The time this thread will be woken up by the scheduler */
 
-	rlnode sched_node; /**< @brief Node to use when queueing in the scheduler lists */
-	TimerDuration its; /**< @brief Initial time-slice for this thread */
-	TimerDuration rts; /**< @brief Remaining time-slice for this thread */
+  rlnode sched_node; /**< @brief Node to use when queueing in the scheduler lists */
+  TimerDuration its; /**< @brief Initial time-slice for this thread */
+  TimerDuration rts; /**< @brief Remaining time-slice for this thread */
 
-  //Additions below
-  threadPriority priority; //priority of current Thread, expressed as int see line 95 for definition
-  threadPriority prevPriority; // priority of thread before enterinf scheduler's mutex (initial entrance)
-  int mutexCount; // count mutex call occurences 
+  /*OUR CODE, Declaration of 3 variable members */
 
-	enum SCHED_CAUSE curr_cause; /**< @brief The endcause for the current time-slice */
-	enum SCHED_CAUSE last_cause; /**< @brief The endcause for the last time-slice */
+  int mutexCount; //count how many times we need mutex
+  int priority; //priority of a thread
+  int prevPriority; //initial priority of this thread
 
-  
+  enum SCHED_CAUSE curr_cause; /**< @brief The endcause for the current time-slice */
+  enum SCHED_CAUSE last_cause; /**< @brief The endcause for the last time-slice */
+
+  struct thread_control_block *prev;
+  struct thread_control_block *next;
+
 
 } TCB;
 
@@ -156,12 +165,12 @@ typedef struct thread_control_block {
   Per-core info in memory (basically scheduler-related). 
  */
 typedef struct core_control_block {
-	uint id; /**< @brief The core id */
+  uint id; /**< @brief The core id */
 
-	TCB* current_thread; /**< @brief Points to the thread currently owning the core */
-	TCB* previous_thread; /**< @brief Points to the thread that previously owned the core */
-	TCB idle_thread; /**< @brief Used by the scheduler to handle the core's idle thread */
-	sig_atomic_t preemption; /**< @brief Marks preemption, used by the locking code */
+  TCB* current_thread; /**< @brief Points to the thread currently owning the core */
+  TCB* previous_thread; /**< @brief Points to the thread that previously owned the core */
+  TCB idle_thread; /**< @brief Used by the scheduler to handle the core's idle thread */
+  sig_atomic_t preemption; /**< @brief Marks preemption, used by the locking code */
 
 } CCB;
 
@@ -192,10 +201,10 @@ extern CCB cctx[MAX_CORES];
 #define NO_TIMEOUT ((TimerDuration)-1)
 
 /**
-	@brief Create a new thread.
+  @brief Create a new thread.
 
-	This call creates a new thread, initializing and returning its TCB.
-	The thread will belong to process @c pcb and execute @c func.
+  This call creates a new thread, initializing and returning its TCB.
+  The thread will belong to process @c pcb and execute @c func.
     Note that, the new thread is returned in the @c INIT state.
     The caller must use @c wakeup() to start it.
 
@@ -223,32 +232,32 @@ int wakeup(TCB* tcb);
 /** 
   @brief Block the current thread.
 
-	This call will block the current thread, changing its state to @c STOPPED
-	or @c EXITED. Also, the mutex @c mx, if not `NULL`, will be unlocked, atomically
-	with the blocking of the thread. 
+  This call will block the current thread, changing its state to @c STOPPED
+  or @c EXITED. Also, the mutex @c mx, if not `NULL`, will be unlocked, atomically
+  with the blocking of the thread. 
 
-	In particular, what is meant by 'atomically' is that the thread state will change
-	to @c newstate atomically with the mutex unlocking. Note that, the state of
-	the current thread is @c RUNNING. 
-	Therefore, no other state change (such as a wakeup, a yield, another sleep etc) 
-	can happen "between" the thread's state change and the unlocking.
+  In particular, what is meant by 'atomically' is that the thread state will change
+  to @c newstate atomically with the mutex unlocking. Note that, the state of
+  the current thread is @c RUNNING. 
+  Therefore, no other state change (such as a wakeup, a yield, another sleep etc) 
+  can happen "between" the thread's state change and the unlocking.
   
-	If the @c newstate is @c EXITED, the thread will block and also will eventually be
-	cleaned-up by the scheduler. Its TCB should not be accessed in any way after this
-	call.
+  If the @c newstate is @c EXITED, the thread will block and also will eventually be
+  cleaned-up by the scheduler. Its TCB should not be accessed in any way after this
+  call.
 
-	A cause for the sleep must be provided; this parameter indicates to the scheduler the
-	source of the sleeping operation, and can be used in scheduler heuristics to adjust 
-	scheduling decisions.
+  A cause for the sleep must be provided; this parameter indicates to the scheduler the
+  source of the sleeping operation, and can be used in scheduler heuristics to adjust 
+  scheduling decisions.
 
-	A timeout can also be provided. If the timeout is not @c NO_TIMEOUT, then the thread will
-	be made ready by the scheduler after the timeout duration has passed, even without a call to
-	@c wakeup() by another thread.
+  A timeout can also be provided. If the timeout is not @c NO_TIMEOUT, then the thread will
+  be made ready by the scheduler after the timeout duration has passed, even without a call to
+  @c wakeup() by another thread.
 
-	@param newstate the new state for the current thread, which must be either stopped or exited
-	@param mx the mutex to unlock.
-	@param cause the cause of the sleep
-	@param timeout a timeout for the sleep, or 
+  @param newstate the new state for the current thread, which must be either stopped or exited
+  @param mx the mutex to unlock.
+  @param cause the cause of the sleep
+  @param timeout a timeout for the sleep, or 
    */
 void sleep_releasing(Thread_state newstate, Mutex* mx, enum SCHED_CAUSE cause, TimerDuration timeout);
 
@@ -276,6 +285,8 @@ void run_scheduler(void);
    This function is called during kernel initialization.
  */
 void initialize_scheduler(void);
+
+void rearrangePriorities();
 
 /**
   @brief Quantum (in microseconds) 

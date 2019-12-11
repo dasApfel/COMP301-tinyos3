@@ -11,12 +11,7 @@ Define the operation set
 
 */
 
-int pipe_read(void *givenCB, char *buf, unsigned int length);
-int pipe_write(void *givenCB, const char *buf, unsigned int size);
-int pipe_close_reader(void *givenCB); 
-int pipe_close_writer(void *givenCB);
-int illegal_read(void *givenCB, char *buf, unsigned int s);
-int illegal_write(void *givenCB,const char *buf, unsigned int s);
+
 
 static file_ops readerOps = {
 
@@ -139,12 +134,14 @@ int pipe_read(void *givenCB, char *buf, unsigned int length)
 {
 
 	unsigned int pos = 0;
-	PipeCB *p = (PipeCB *)givenCB;
+	PipeCB *p = (PipeCB *) givenCB;
 
 	if(p->readerOff == 1)
+	{
 		return -1;
+	}
 
-	//done deal, just get out
+	//done deal, just get out there's nothing to read
 	if ((p->writerOff == 1) && (p->readPos == p->writePos))
 		return 0;	
 
@@ -155,13 +152,17 @@ int pipe_read(void *givenCB, char *buf, unsigned int length)
 			kernel_broadcast(&p->cv_write);
 			kernel_wait(&p->cv_read, SCHED_PIPE);
 		}
+
+		// we're now awaken, so is everything on?
 		if(p->writePos == p->readPos && p->writerOff)
 		{
 			return pos;
 		}
 		buf[pos] = p->buffer[p->readPos];
-
+		
 	}
+
+	//same boring broadcasting
 
 	kernel_broadcast(&p->cv_write);
 	return pos;
@@ -181,20 +182,26 @@ int pipe_write(void *givenCB, const char *buf, unsigned int size) {
         return -1;
     }
     
-    for (pos = 0; pos < size; pos++ ,p->writePos = (p->writePos + 1) % BUFFER_SIZE)
+    for (pos = 0; pos < size; pos++,  p->writePos = (p->writePos + 1) % BUFFER_SIZE )
     {
         while ((p->writePos + 1) % BUFFER_SIZE == p->readPos && !p->readerOff) 
         {
             kernel_broadcast(&p->cv_read);
             kernel_wait(&p->cv_write, SCHED_PIPE);
         }
+
+        //nobody writes on something that will never been read!
         if (p->writerOff==1 || p->readerOff==1) 
         {
             return -1;
         }
         p->buffer[p->writePos] = buf[pos];
+       
         
     }
+
+
+    // just broadcast something
     kernel_broadcast(&p->cv_read);
     return pos;
 }

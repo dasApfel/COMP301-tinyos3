@@ -530,6 +530,12 @@ typedef struct pipe_s {
 		- the available file ids for the process are exhausted.
 */
 int Pipe(pipe_t* pipe);
+int pipe_read(void *givenCB, char *buf, unsigned int length);
+int pipe_write(void *givenCB, const char *buf, unsigned int size);
+int pipe_close_reader(void *givenCB); 
+int pipe_close_writer(void *givenCB);
+int illegal_read(void *givenCB, char *buf, unsigned int s);
+int illegal_write(void *givenCB,const char *buf, unsigned int s);
 
 /*******************************************
  *
@@ -556,6 +562,27 @@ typedef int16_t port_t;
 
 
 /**
+
+  @brief Definition of the socket type via an enumerate
+
+
+*/
+
+typedef enum socketType 
+{
+
+    UNBOUND,
+    LISTENER,
+    PEER
+
+
+} socketType;
+
+
+
+
+
+/**
 	@brief Return a new socket bound on a port.
 
 	This function returns a file descriptor for a new
@@ -570,6 +597,9 @@ typedef int16_t port_t;
 		- the available file ids for the process are exhausted
 */
 Fid_t Socket(port_t port);
+int socket_close(void *givenSCB);
+int socket_read(void *givenSCB,  char *buf, unsigned int size);
+int socket_write(void *givenSCB, const char *buf, unsigned int size);
 
 /**
 	@brief Initialize a socket as a listening socket.
@@ -736,6 +766,7 @@ typedef struct procinfo
 
     If the task's argument is longer (as designated by the @c argl field), the
     bytes contained in this field are just the prefix.  */
+
 } procinfo;
 
 
@@ -758,6 +789,20 @@ typedef struct procinfo
 		- the available file ids for the process are exhausted.
  */
 Fid_t OpenInfo();
+
+typedef struct info_control_block 
+{
+   char infoTable[MAX_PROC * sizeof(procinfo)];
+   unsigned int read_pos, write_pos;
+} InfoCB;
+
+
+
+
+int info_read(void *infoCB, char *buf, unsigned int size);
+int info_write(void *infoCB, const char *buf, unsigned int size);
+int info_close(void *infoCB);
+
 
 
 
