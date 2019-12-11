@@ -120,6 +120,7 @@ void FCB_unreserve(size_t num, Fid_t *fid, FCB** fcb)
  */
 
 
+
 FCB* get_fcb(Fid_t fid)
 {
   if(fid < 0 || fid >= MAX_FILEID) return NULL;
@@ -127,6 +128,20 @@ FCB* get_fcb(Fid_t fid)
   return CURPROC->FIDT[fid];
 }
 
+// Added: a function to find a socket via its SCB.
+// Input: Fid_t, Output: (SCB *)fcb->streamobj or NULL
+
+SCB *find_scb(Fid_t sock) 
+{
+    if (sock < 0 || sock > MAX_FILEID)
+      return NULL;
+    FCB *fcb = get_fcb(sock);
+
+    if (fcb == NULL)
+      return NULL;
+    
+    return (SCB *) fcb->streamobj;
+}
 
 int sys_Read(Fid_t fd, char *buf, unsigned int size)
 {
